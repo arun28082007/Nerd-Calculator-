@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NerdCalc | Advanced Terminal Calculator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Math.js for advanced math parsing and evaluation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    
+    <!-- Plotly.js for Graphing -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Fira Code', monospace;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #e2e8f0; /* Tailwind slate-200 */
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Custom Scrollbar for Terminal */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        .terminal-input-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+        .prompt {
+            color: #10b981; /* Emerald 500 */
+            margin-right: 0.5rem;
+            font-weight: bold;
+        }
+
+        input[type="text"] {
+            background: transparent;
+            border: none;
+            color: #f8fafc;
+            flex-grow: 1;
+            font-family: 'Fira Code', monospace;
+            font-size: 1rem;
+            outline: none;
+            caret-color: #10b981;
+        }
+
+        .output-line {
+            margin-bottom: 0.25rem;
+            word-break: break-all;
+        }
+
+        .output-result {
+            color: #38bdf8; /* Sky 400 */
+            font-weight: 500;
+        }
+
+        .output-error {
+            color: #ef4444; /* Red 500 */
+        }
+
+        .output-system {
+            color: #a8a29e; /* Stone 400 */
+            font-style: italic;
+        }
+
+        /* Syntax Highlighting Classes for Help Menu */
+        .hl-func { color: #c084fc; } /* Purple */
+        .hl-num { color: #fba918; }  /* Orange */
+        .hl-str { color: #a3e635; }  /* Lime */
+        .hl-op { color: #f472b6; }   /* Pink */
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- Top Navigation -->
+    <header class="bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shrink-0 shadow-md z-10">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-terminal text-emerald-500 text-xl"></i>
+            <h1 class="text-xl font-bold tracking-wider text-slate-100">NerdCalc<span class="text-emerald-500">_</span></h1>
+        </div>
+        <div class="text-sm text-slate-400 hidden sm:block">
+            Powered by <a href="https://mathjs.org/" target="_blank" class="text-sky-400 hover:underline">Math.js</a>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Left Panel: Terminal REPL -->
+        <div class="flex-1 flex flex-col bg-slate-900 border-r border-slate-700 relative w-full md:w-1/2">
+            <!-- Terminal Output History -->
+            <div id="terminal-history" class="flex-grow p-4 overflow-y-auto font-mono text-sm sm:text-base pb-20">
+                <!-- Welcome Message populated by JS -->
+            </div>
+
+            <!-- Terminal Input -->
+            <div class="bg-slate-800 p-4 border-t border-slate-700 absolute bottom-0 left-0 right-0 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.3)]">
+                <div class="terminal-input-wrapper">
+                    <span class="prompt">math~$</span>
+                    <input type="text" id="command-input" autocomplete="off" spellcheck="false" autofocus placeholder="Type an expression or 'help'...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Graph & Docs -->
+        <div class="flex-1 flex flex-col bg-slate-800 w-full md:w-1/2 hidden md:flex">
+            <!-- Graph Container -->
+            <div class="h-1/2 border-b border-slate-700 p-2 relative bg-slate-900">
+                <div class="absolute top-4 left-4 z-10 bg-slate-800/80 px-2 py-1 rounded text-xs text-slate-300 backdrop-blur pointer-events-none border border-slate-700">
+                    <i class="fa-solid fa-chart-line mr-1"></i> Plot Viewer
+                </div>
+                <div id="plot-container" class="w-full h-full"></div>
+            </div>
+
+            <!-- Quick Reference / Docs -->
+            <div class="h-1/2 p-6 overflow-y-auto">
+                <h2 class="text-lg font-bold text-slate-200 mb-4 border-b border-slate-700 pb-2">
+                    <i class="fa-solid fa-book-journal-whills mr-2 text-sky-400"></i>Quick Reference
+                </h2>
+                
+                <div class="space-y-4 text-sm text-slate-300">
+                    <div>
+                        <h3 class="font-semibold text-emerald-400 mb-1">Basic Math & Algebra</h3>
+                        <p class="bg-slate-900 p-2 rounded border border-slate-700">
+                            > <span class="hl-func">sqrt</span>(<span class="hl-num">16</span>) + <span class="hl-num">5</span>^<span class="hl-num">2</span><br>
+                            > x = <span class="hl-num">10</span> / <span class="hl-num">2</span><br>
+                            > <span class="hl-func">simplify</span>(<span class="hl-str">'2x + x'</span>)
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold text-emerald-400 mb-1">Calculus & Functions</h3>
+                        <p class="bg-slate-900 p-2 rounded border border-slate-700">
+                            > f(x, y) = x^<span class="hl-num">2</span> + y<br>
+                            > f(<span class="hl-num">2</span>, <span class="hl-num">3</span>)<br>
+                            > <span class="hl-func">derivative</span>(<span class="hl-str">'x^2 + x'</span>, <span class="hl-str">'x'</span>)
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold text-emerald-400 mb-1">Matrices & Complex Numbers</h3>
+                        <p class="bg-slate-900 p-2 rounded border border-slate-700">
+                            > <span class="hl-func">det</span>([<span class="hl-num">-1</span>, <span class="hl-num">2</span>; <span class="hl-num">3</span>, <span class="hl-num">1</span>])<br>
+                            > <span class="hl-func">cross</span>([<span class="hl-num">1</span>, <span class="hl-num">1</span>, <span class="hl-num">0</span>], [<span class="hl-num">0</span>, <span class="hl-num">1</span>, <span class="hl-num">1</span>])<br>
+                            > <span class="hl-func">complex</span>(<span class="hl-str">'2 + 3i'</span>) * i
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold text-emerald-400 mb-1">Units & Graphing</h3>
+                        <p class="bg-slate-900 p-2 rounded border border-slate-700">
+                            > <span class="hl-num">5.08</span> cm to inch<br>
+                            > <span class="hl-func">sin</span>(<span class="hl-num">45</span> deg) ^ <span class="hl-num">2</span><br>
+                            > <span class="hl-func text-sky-400">plot</span>(sin(x)) <span class="text-slate-500">// Renders to panel above</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Plot Modal (Hidden on Desktop) -->
+    <div id="mobile-plot-modal" class="fixed inset-0 bg-slate-900/95 z-50 hidden flex-col">
+        <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+            <h3 class="font-bold text-slate-200"><i class="fa-solid fa-chart-line mr-2 text-emerald-500"></i>Graph Viewer</h3>
+            <button onclick="closeMobilePlot()" class="text-slate-400 hover:text-white px-3 py-1 bg-slate-700 rounded">Close</button>
+        </div>
+        <div id="mobile-plot-container" class="flex-grow w-full"></div>
+    </div>
+
+    <script>
+        // System State
+        const parser = math.parser(); // Math.js execution scope
+        let commandHistory = [];
+        let historyIndex = -1;
+
+        // DOM Elements
+        const terminalHistory = document.getElementById('terminal-history');
+        const commandInput = document.getElementById('command-input');
+        const plotContainer = document.getElementById('plot-container');
+        const mobilePlotContainer = document.getElementById('mobile-plot-container');
+        const mobilePlotModal = document.getElementById('mobile-plot-modal');
+
+        // Initial empty plot setup
+        const defaultPlotLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            margin: { t: 40, r: 20, b: 40, l: 40 },
+            font: { color: '#94a3b8', family: 'Fira Code, monospace' },
+            xaxis: { gridcolor: '#334155', zerolinecolor: '#64748b' },
+            yaxis: { gridcolor: '#334155', zerolinecolor: '#64748b' }
+        };
+        Plotly.newPlot(plotContainer, [], defaultPlotLayout, {responsive: true});
+
+        // Write to terminal
+        function printToTerminal(text, type = 'normal') {
+            const line = document.createElement('div');
+            line.className = 'output-line';
+            
+            if (type === 'command') {
+                line.innerHTML = `<span class="prompt">math~$</span> <span class="text-slate-200">${escapeHtml(text)}</span>`;
+            } else if (type === 'result') {
+                line.innerHTML = `<span class="output-result">${escapeHtml(text)}</span>`;
+            } else if (type === 'error') {
+                line.innerHTML = `<span class="output-error"><i class="fa-solid fa-circle-xmark mr-1"></i> ${escapeHtml(text)}</span>`;
+            } else if (type === 'system') {
+                line.innerHTML = `<span class="output-system">${text}</span>`; // Allow HTML for system messages
+            }
+
+            terminalHistory.appendChild(line);
+            terminalHistory.scrollTop = terminalHistory.scrollHeight;
+        }
+
+        // Utility to prevent XSS in output
+        function escapeHtml(unsafe) {
+            return (unsafe || "").toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Execute Plot Command
+        function executePlot(expressionStr) {
+            try {
+                // Compile the math expression
+                const expr = math.compile(expressionStr);
+                
+                // Generate X values (-10 to 10)
+                const xValues = math.range(-10, 10, 0.1).toArray();
+                
+                // Evaluate Y values using the parser's current scope
+                // This allows plotting functions defined by the user earlier!
+                const yValues = xValues.map(function (x) {
+                    // Create a local scope with 'x', merging with global parser scope
+                    let scope = Object.assign({}, parser.getAll(), {x: x});
+                    return expr.evaluate(scope); 
+                });
+
+                // Check if result is real numbers (no complex numbers in basic plotting)
+                if (yValues.some(y => math.typeOf(y) === 'Complex')) {
+                    throw new Error("Cannot plot complex numbers in 2D space.");
+                }
+
+                const trace = {
+                    x: xValues,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#10b981', width: 2 },
+                    name: expressionStr
+                };
+
+                const layout = {
+                    ...defaultPlotLayout,
+                    title: { text: `f(x) = ${expressionStr}`, font: { color: '#e2e8f0' } }
+                };
+
+                // Draw on Desktop
+                Plotly.newPlot(plotContainer, [trace], layout, {responsive: true});
+                
+                // Draw on Mobile & Show Modal if on small screen
+                if (window.innerWidth < 768) {
+                    mobilePlotModal.classList.remove('hidden');
+                    mobilePlotModal.classList.add('flex');
+                    Plotly.newPlot(mobilePlotContainer, [trace], layout, {responsive: true});
+                }
+
+                printToTerminal(`Graph generated for: ${expressionStr}`, 'system');
+
+            } catch (err) {
+                printToTerminal(err.message, 'error');
+            }
+        }
+
+        function closeMobilePlot() {
+            mobilePlotModal.classList.add('hidden');
+            mobilePlotModal.classList.remove('flex');
+        }
+
+        // Process Command
+        function processCommand(cmd) {
+            const input = cmd.trim();
+            if (!input) return;
+
+            // Add to history
+            commandHistory.push(input);
+            historyIndex = commandHistory.length;
+
+            // Echo command
+            printToTerminal(input, 'command');
+
+            // Handle Custom System Commands
+            if (input.toLowerCase() === 'clear') {
+                terminalHistory.innerHTML = '';
+                return;
+            }
+
+            if (input.toLowerCase() === 'help') {
+                printToTerminal(`
+                    <b>Available Commands:</b><br>
+                    - <span class="text-emerald-400">clear</span> : Clears the terminal<br>
+                    - <span class="text-emerald-400">plot(expr)</span> : Draws a graph (e.g., plot(x^2 * sin(x)))<br>
+                    - Standard Math : <span class="text-sky-300">sqrt(25)</span>, <span class="text-sky-300">det([1, 2; 3, 4])</span><br>
+                    - Variable Assignment: <span class="text-sky-300">speed = 100</span>, <span class="text-sky-300">f(x) = 2x</span><br>
+                    <i>See the Quick Reference panel for more examples.</i>
+                `, 'system');
+                return;
+            }
+
+            // Handle Custom Plot Interception
+            // Regex matches "plot(" followed by anything, ending with ")"
+            const plotMatch = input.match(/^plot\((.+)\)$/);
+            if (plotMatch) {
+                executePlot(plotMatch[1]);
+                return;
+            }
+
+            // Standard Math.js Evaluation
+            try {
+                let result = parser.evaluate(input);
+                
+                // Formatting result nicely
+                let formattedResult;
+                if (typeof result === 'function') {
+                    formattedResult = "Function defined.";
+                } else if (result && result.isResultSet) {
+                     // If multiple expressions separated by semicolon or newline
+                    formattedResult = result.entries.map(e => math.format(e, {precision: 14})).join('\n');
+                } else {
+                    formattedResult = math.format(result, {precision: 14});
+                }
+
+                if (formattedResult !== undefined && formattedResult !== 'undefined') {
+                    printToTerminal(formattedResult, 'result');
+                }
+                
+            } catch (err) {
+                printToTerminal(String(err), 'error');
+            }
+        }
+
+        // Event Listeners
+        commandInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                processCommand(this.value);
+                this.value = '';
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    this.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    this.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    this.value = '';
+                }
+            }
+        });
+
+        // Focus input anywhere clicked on terminal
+        document.querySelector('.flex-1.flex.flex-col.bg-slate-900').addEventListener('click', () => {
+            commandInput.focus();
+        });
+
+        // Initialize Welcome Screen
+        window.onload = () => {
+            printToTerminal(`
+                <span class="text-emerald-400 font-bold">NerdCalc v1.0.0 initialized.</span><br>
+                Type <span class="text-sky-400">'help'</span> to see available commands or look at the Quick Reference.<br>
+                Try typing: <span class="text-sky-400">plot(sin(x) * x)</span>
+            `, 'system');
+            
+            // Define some fun default variables to show off
+            parser.evaluate('c = 299792458 m / s'); // Speed of light
+            parser.evaluate('g = 9.81 m / s^2');    // Gravity
+        };
+
+        // Handle window resize for plot
+        window.addEventListener('resize', () => {
+            Plotly.Plots.resize(plotContainer);
+            if (!mobilePlotModal.classList.contains('hidden')) {
+                Plotly.Plots.resize(mobilePlotContainer);
+            }
+        });
+
+    </script>
+</body>
+</html>
+
